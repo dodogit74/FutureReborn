@@ -249,10 +249,24 @@ private fun LogTab(s: GameState) {
 }
 
 @Composable
+@Composable
 private fun SkillLine(label: String, st: SkillState?) {
     val level = st?.level ?: 1
-    Text("$label : lvl $level", style = MaterialTheme.typography.bodyMedium)
+    val xp = st?.xp ?: 0.0
+    val xpNeeded = 20.0 * level.toDouble().pow(1.55)
+    val progress = (xp / xpNeeded).toFloat().coerceIn(0f, 1f)
+
+    Column {
+        Text("$label : niveau $level → ${level + 1}")
+        LinearProgressIndicator(
+            progress = progress,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+        )
+    }
 }
+
 
 private fun formatAge(ageDays: Double): String {
     val years = floor(ageDays / 365.0).toInt()
