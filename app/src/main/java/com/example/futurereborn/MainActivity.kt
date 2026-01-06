@@ -201,7 +201,7 @@ private fun ActionTab(
                             )
                         }
                     }
-                    if (!unlocked) {
+                    if (!availableJobs) {
                         Text("Verrouillé (conditions non remplies).", style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(Modifier.height(4.dp))
