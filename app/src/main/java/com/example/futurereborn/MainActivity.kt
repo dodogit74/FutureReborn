@@ -236,16 +236,12 @@ private fun ActionTab(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
-                            Text(
-                                "${j.description}\n+${j.creditsPerSec}/s",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                }
+                Text(
+                    "${j.description}\n+${j.creditsPerSec}/s",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
-}
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(onClick = onReincarnate, modifier = Modifier.weight(1f)) {
