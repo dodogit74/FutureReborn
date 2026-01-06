@@ -23,6 +23,18 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 var tab by remember { mutableIntStateOf(0) }
                 val s = vm.state
+                var lastLogSize by remember { mutableStateOf(s.log.size) }
+                var showStoryPopup by remember { mutableStateOf(false) }
+                var latestStoryLine by remember { mutableStateOf("") }
+
+                LaunchedEffect(s.log.size) {
+                    if (s.log.size > lastLogSize) {
+                        latestStoryLine = s.log.last()
+                        showStoryPopup = true
+                        lastLogSize = s.log.size
+                    }
+
+                }
 
                 Column(
                     modifier = Modifier
