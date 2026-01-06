@@ -287,5 +287,6 @@ private fun SkillLine(label: String, st: SkillState?) {
 private fun formatAge(ageDays: Double): String {
     val years = floor(ageDays / 365.0).toInt()
     val months = floor(((ageDays % 365.0) / 30.0)).toInt()
+    val days = floor(ageDays % 30).toInt()
     return "${years}a ${months}m"
 }
