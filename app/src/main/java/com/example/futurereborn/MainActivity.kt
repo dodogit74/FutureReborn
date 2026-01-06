@@ -195,12 +195,12 @@ private fun ActionTab(
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
+                            Text(
+                                "${j.description}\n+${j.creditsPerSec}/s",
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                     }
-                    Text(
-                        "${j.description}\n+${j.creditsPerSec}/s",
-                        style = MaterialTheme.typography.bodySmall
-                    )
                     if (!unlocked) {
                         Text("Verrouillé (conditions non remplies).", style = MaterialTheme.typography.bodySmall)
                     }
