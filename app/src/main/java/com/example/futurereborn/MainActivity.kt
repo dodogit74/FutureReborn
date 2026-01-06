@@ -116,6 +116,33 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun GameScreen(vm: GameViewModel) {
+    var lastLogSize by remember { mutableStateOf(vm.state.log.size) }
+    var showStoryPopup by remember { mutableStateOf(false) }
+    var latestStoryLine by remember { mutableStateOf("") }
+
+    if (showStoryPopup) {
+        AlertDialog(
+            onDismissRequest = { showStoryPopup = false },
+            confirmButton = {
+                TextButton(onClick = { showStoryPopup = false }) {
+                    Text("Continuer")
+                }
+            },
+            title = { Text("Nouvel événement") },
+            text = { Text(latestStoryLine) }
+        )
+    }
+    LaunchedEffect(vm.state.log.size) {
+        if (vm.state.log.size > lastLogSize) {
+            latestStoryLine = vm.state.log.last()
+            showStoryPopup = true
+            lastLogSize = vm.state.log.size
+        }
+    }
+}
+
+@Composable
 private fun ActionTab(
     s: GameState,
     onActivity: (ActivityId) -> Unit,
