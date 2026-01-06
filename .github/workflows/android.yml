@@ -2,7 +2,7 @@ name: Build Android APK (no wrapper)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
@@ -17,12 +17,12 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: "17"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: 8.7
+          gradle-version: "8.7"
 
       - name: Build Debug APK
         run: gradle assembleDebug
@@ -31,5 +31,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FutureReborn-debug-apk
-          path: app/build/outputs/apk/debu
-          g/*.apk
+          path: "app/build/outputs/apk/debug/*.apk"
