@@ -171,18 +171,60 @@ private fun ActionTab(
                     Text("Quitter le job")
                 }
 
-                Defs.jobs.forEach { val availableJobs = Defs.jobs.filter { it.required(s) }
-                    val nextLockedJob = Defs.jobs.firstOrNull { !it.required(s) }
-                    availableJobs.forEach { j ->
-                        ElevatedButton(
-                            onClick = { onJob(j.id) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(if (s.activeJob == j.id) "✓ ${j.name}" else j.name)
-                        }
-                        Text(j.description, style = MaterialTheme.typography.bodySmall)
-                    }
-                    nextLockedJob?.let { j ->
+                // Jobs (déblocage séquentiel)
+val jobs = Defs.jobs
+
+// Dernier job "débloqué dans l'ordre" = on s'arrête au premier job dont required(s) == false
+val firstLockedIndex = jobs.indexOfFirst { !it.required(s) }
+val lastUnlockedIndex = if (firstLockedIndex == -1) jobs.lastIndex else firstLockedIndex - 1
+
+// On montre tous les jobs débloqués + le prochain (même verrouillé)
+val visibleCount = (lastUnlockedIndex + 2).coerceAtMost(jobs.size)
+val visibleJobs = jobs.take(visibleCount)
+
+visibleJobs.forEachIndexed { index, j ->
+    // Débloqué seulement si son required(s) est vrai ET tous les précédents sont débloqués (séquence)
+    val unlockedInSequence = (index == 0 || index - 1 <= lastUnlockedIndex) && j.required(s)
+
+    ElevatedButton(
+        onClick = { onJob(j.id) },
+        enabled = unlockedInSequence,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        val label = when {
+            s.activeJob == j.id -> "✓ ${j.name}"
+            unlockedInSequence -> j.name
+            else -> "🔒 ${j.name}"
+        }
+        Text(label)
+    }
+
+    Text(
+        "${j.description}\n+${j.creditsPerSec}/s",
+        style = MaterialTheme.typography.bodySmall
+    )
+
+    // Conditions affichées pour le job verrouillé (le prochain)
+    if (!unlockedInSequence) {
+        val prevName = jobs.getOrNull(index - 1)?.name
+        if (prevName != null) {
+            Text(
+                "Condition 1 : débloquer d’abord \"$prevName\"",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+        // On ne peut pas afficher des prérequis précis ici car required(s) est une lambda non introspectable.
+        Text(
+            "Condition 2 : remplir les prérequis du métier (tes compétences doivent augmenter).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+
+    Spacer(Modifier.height(8.dp))
+}
+
                         Spacer(Modifier.height(8.dp))
                         Card {
                             Column(Modifier.padding(12.dp)) {
