@@ -1,7 +1,8 @@
 plugins {
     // AGP 8.5.x est compatible avec Gradle 8.7 et JDK 17
     id 'com.android.application' version '8.5.0' apply false
-    // Ton projet utilise le compiler Compose 1.5.14 -> Kotlin 1.9.24 recommandé
-    id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+    // Ton projet utilise le compiler Compose 1.5.14 -> Kotlin 1.9.22 recommandé
+    id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+
 }
 // Root build.gradle (kept minimal)
