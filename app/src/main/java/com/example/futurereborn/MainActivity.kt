@@ -171,15 +171,31 @@ private fun ActionTab(
                     Text("Quitter le job")
                 }
 
-                Defs.jobs.forEach { j ->
-                    val unlocked = j.required(s)
-                    ElevatedButton(
-                        onClick = { onJob(j.id) },
-                        enabled = unlocked,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        val label = if (s.activeJob == j.id) "✓ ${j.name}" else j.name
-                        Text(label)
+                Defs.jobs.forEach { val availableJobs = Defs.jobs.filter { it.required(s) }
+                    val nextLockedJob = Defs.jobs.firstOrNull { !it.required(s) }
+                    availableJobs.forEach { j ->
+                        ElevatedButton(
+                            onClick = { onJob(j.id) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (s.activeJob == j.id) "✓ ${j.name}" else j.name)
+                        }
+                        Text(j.description, style = MaterialTheme.typography.bodySmall)
+                    }
+                    nextLockedJob?.let { j ->
+                        Spacer(Modifier.height(8.dp))
+                        Card {
+                            Column(Modifier.padding(12.dp)) {
+                                Text("Prochain métier débloquable", style = MaterialTheme.typography.titleSmall)
+                                Text(j.name)
+                                Text(j.description, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    "Conditions non remplies",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
                     Text(
                         "${j.description}\n+${j.creditsPerSec}/s",
