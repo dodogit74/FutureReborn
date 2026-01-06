@@ -57,10 +57,23 @@ class MainActivity : ComponentActivity() {
                         .padding(16.dp)
                 ) {
 
-                    Text(
-                        "Future Reborn  |  Vies: ${s.totalLives}  |  Échos: ${s.echoes}",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                   Card(
+                       colors = CardDefaults.cardColors(
+                           containerColor = MaterialTheme.colorScheme.primaryContainer
+                       ),
+                       modifier = Modifier.fillMaxWidth()
+                   ) {
+                       Column(Modifier.padding(12.dp)) {
+                           Text(
+                               "Future Reborn",
+                               style = MaterialTheme.typography.titleLarge
+                           )
+                           Text(
+                               "Vies : ${s.totalLives}  |  Échos : ${s.echoes}",
+                               style = MaterialTheme.typography.bodyMedium
+                           )
+                       }
+                   }
 
                     Spacer(Modifier.height(8.dp))
 
