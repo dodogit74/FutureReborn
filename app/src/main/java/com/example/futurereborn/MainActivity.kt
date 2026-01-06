@@ -23,6 +23,21 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 var tab by remember { mutableIntStateOf(0) }
                 val s = vm.state
+                
+                if (showStoryPopup) {
+                    AlertDialog(
+                        onDismissRequest = { showStoryPopup = false },
+                        confirmButton = {
+                            TextButton(onClick = { showStoryPopup = false }) {
+                                Text("Continuer")
+                            }
+                        },
+                        title = { Text("Nouvel événement") },
+                        text = { Text(latestStoryLine) }
+                    )
+ 
+                }
+                
                 var lastLogSize by remember { mutableStateOf(s.log.size) }
                 var showStoryPopup by remember { mutableStateOf(false) }
                 var latestStoryLine by remember { mutableStateOf("") }
