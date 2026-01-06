@@ -201,7 +201,7 @@ private fun ActionTab(
                             )
                         }
                     }
-                    if (!availableJobs) {
+                    if (availableJobs=false) {
                         Text("Verrouillé (conditions non remplies).", style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(Modifier.height(4.dp))
@@ -264,7 +264,6 @@ private fun LogTab(s: GameState) {
     }
 }
 
-@Composable
 @Composable
 private fun SkillLine(label: String, st: SkillState?) {
     val level = st?.level ?: 1
