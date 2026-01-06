@@ -25,6 +25,10 @@ class MainActivity : ComponentActivity() {
                 var tab by remember { mutableIntStateOf(0) }
                 val s = vm.state
                 
+                var lastLogSize by remember { mutableStateOf(s.log.size) }
+                var showStoryPopup by remember { mutableStateOf(false) }
+                var latestStoryLine by remember { mutableStateOf("") }
+
                 if (showStoryPopup) {
                     AlertDialog(
                         onDismissRequest = { showStoryPopup = false },
@@ -36,13 +40,8 @@ class MainActivity : ComponentActivity() {
                         title = { Text("Nouvel événement") },
                         text = { Text(latestStoryLine) }
                     )
- 
                 }
                 
-                var lastLogSize by remember { mutableStateOf(s.log.size) }
-                var showStoryPopup by remember { mutableStateOf(false) }
-                var latestStoryLine by remember { mutableStateOf("") }
-
                 LaunchedEffect(s.log.size) {
                     if (s.log.size > lastLogSize) {
                         latestStoryLine = s.log.last()
