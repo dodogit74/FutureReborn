@@ -234,9 +234,9 @@ fun ActionTab(
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
-                        if (!j.required(s)) {
+                        jobPrereqsText(s, j.id).forEach { req ->
                             Text(
-                                "Prérequis : compétences insuffisantes.",
+                                "Prérequis : $req",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -330,5 +330,34 @@ fun MasteryLine(label: String, st: SkillState) {
 fun formatAge(ageDays: Double): String {
     val years = floor(ageDays / 365.0).toInt()
     val months = floor(((ageDays % 365.0) / 30.0)).toInt()
-    return "${years}a ${months}m"
+    val days = floor(ageDays % 30).toInt()
+    return "${years}a ${months}m ${days}y"
+}
+
+private fun jobPrereqsText(s: GameState, jobId: JobId): List<String> {
+    fun lvl(id: SkillId) = s.skills[id]?.level ?: 1
+    return when (jobId) {
+        "scrap_runner" -> listOf("Adaptation ≥ 2 (actuel : ${lvl("adaptation")})")
+        "translator_helper" -> listOf("Linguistique ≥ 6 (actuel : ${lvl("linguistics")})")
+        "tech_apprentice" -> listOf(
+            "Tech ≥ 6 (actuel : ${lvl("tech")})",
+            "Adaptation ≥ 5 (actuel : ${lvl("adaptation")})"
+        )
+        "district_mediator" -> listOf(
+            "Charisme ≥ 8 (actuel : ${lvl("charisma")})",
+            "Linguistique ≥ 7 (actuel : ${lvl("linguistics")})",
+            "Adaptation ≥ 7 (actuel : ${lvl("adaptation")})"
+        )
+        else -> listOf("Compétences insuffisantes (prérequis non définis).")
+    }
+}
+
+private fun activityPrereqsText(s: GameState, activityId: ActivityId): List<String> {
+    fun lvl(id: SkillId) = s.skills[id]?.level ?: 1
+    return when (activityId) {
+        "study_tech" -> listOf("Linguistique ≥ 3 (actuel : ${lvl("linguistics")})")
+        "socialize" -> listOf("Linguistique ≥ 2 (actuel : ${lvl("linguistics")})")
+        else -> emptyList()
+    }
+
 }
