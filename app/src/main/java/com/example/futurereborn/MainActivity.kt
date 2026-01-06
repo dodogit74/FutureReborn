@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlin.math.floor
+import kotlin.math.pow
 
 class MainActivity : ComponentActivity() {
 
