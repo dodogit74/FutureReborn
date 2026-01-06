@@ -116,23 +116,6 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun GameScreen(vm: GameViewModel) {
-
-    if (showStoryPopup) {
-        AlertDialog(
-            onDismissRequest = { showStoryPopup = false },
-            confirmButton = {
-                TextButton(onClick = { showStoryPopup = false }) {
-                    Text("Continuer")
-                }
-            },
-            title = { Text("Nouvel événement") },
-            text = { Text(latestStoryLine) }
-        )
-    }
-}
-
-@Composable
 private fun ActionTab(
     s: GameState,
     onActivity: (ActivityId) -> Unit,
