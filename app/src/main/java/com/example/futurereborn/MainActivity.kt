@@ -177,9 +177,9 @@ fun ActionTab(
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
-                        if (!a.required(s)) {
+                        activityPrereqsText(s, a.id).forEach { req ->
                             Text(
-                                "Prérequis : compétences insuffisantes.",
+                                "Prérequis : $req",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
