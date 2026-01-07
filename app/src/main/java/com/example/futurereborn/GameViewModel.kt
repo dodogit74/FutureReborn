@@ -46,7 +46,36 @@ class GameViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setJob(id: JobId?) {
-        _state.value = _state.value.copy(activeJob = id)
+        val s = _state.value
+        // Quand on change de job, il y a un temps d'attente (réduit par Charisme)
+        val delay = if (id == null || id == s.activeJob) {
+            0.0
+        } else {
+            Engine.jobStartDelaySeconds(s)
+        }
+        _state.value = s.copy(activeJob = id, jobWaitSecondsRemaining = delay)
+    }
+
+    fun selectHousing(id: HousingId) {
+        _state.value = _state.value.copy(selectedHousing = id)
+    }
+
+    fun selectFood(id: FoodId?) {
+        _state.value = _state.value.copy(selectedFood = id)
+    }
+
+    fun buyOther(id: OtherId) {
+        val s = _state.value
+        _state.value = s.copy(
+            ownedOther = s.ownedOther + id,
+            activeOther = s.activeOther + id
+        )
+    }
+
+    fun toggleOtherActive(id: OtherId) {
+        val s = _state.value
+        val next = if (s.activeOther.contains(id)) s.activeOther - id else s.activeOther + id
+        _state.value = s.copy(activeOther = next)
     }
 
     fun buyUpgrade(id: UpgradeId) {

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlin.math.floor
 import kotlin.math.pow
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
@@ -52,11 +53,42 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                // Réincarnation : aperçu + confirmation
+                val reincPreview = Engine.previewReincarnation(s)
+                var showReincarnateDialog by remember { mutableStateOf(false) }
+
+                if (showReincarnateDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showReincarnateDialog = false },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showReincarnateDialog = false
+                                vm.reincarnateNow()
+                            }) { Text("Confirmer") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showReincarnateDialog = false }) { Text("Annuler") }
+                        },
+                        title = { Text("Réincarner ?") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Échos à gagner : +${reincPreview.echoGain}")
+                                Text("Crédits de départ (sac de départ) : ${reincPreview.startCredits}")
+                                Text("Tu recommenceras à 16 ans.", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    )
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(16.dp)
                 ) {
+
+                    val day = Engine.currentDay(s)
+                    val joy = Defs.joy(s)
+                    val dailyCost = Defs.dailyCost(s)
 
                     Card(
                         colors = CardDefaults.cardColors(
@@ -66,7 +98,9 @@ class MainActivity : ComponentActivity() {
                     ) {
                         Column(Modifier.padding(12.dp)) {
                             Text("Future Reborn", style = MaterialTheme.typography.titleLarge)
-                            Text("Vies : ${s.totalLives}  |  Échos : ${s.echoes}")
+                            Text("Jour $day  |  Vies : ${s.totalLives}  |  Échos : ${s.echoes}")
+                            Text("Joie : $joy  |  Coût/jour : ${pretty1(dailyCost)}",
+                                style = MaterialTheme.typography.bodySmall)
                         }
                     }
 
@@ -88,8 +122,9 @@ class MainActivity : ComponentActivity() {
 
                     TabRow(selectedTabIndex = tab) {
                         Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Action") })
-                        Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Upgrades") })
-                        Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("Journal") })
+                        Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Boutique") })
+                        Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("Upgrades") })
+                        Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("Journal") })
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -99,10 +134,18 @@ class MainActivity : ComponentActivity() {
                             s = s,
                             onActivity = vm::setActivity,
                             onJob = vm::setJob,
-                            onReincarnate = vm::reincarnateNow
+                            reincPreview = reincPreview,
+                            onRequestReincarnate = { showReincarnateDialog = true }
                         )
-                        1 -> UpgradeTab(s = s, onBuy = vm::buyUpgrade)
-                        2 -> LogTab(s = s)
+                        1 -> ShopTab(
+                            s = s,
+                            onSelectHousing = vm::selectHousing,
+                            onSelectFood = vm::selectFood,
+                            onBuyOther = vm::buyOther,
+                            onToggleOtherActive = vm::toggleOtherActive
+                        )
+                        2 -> UpgradeTab(s = s, onBuy = vm::buyUpgrade)
+                        3 -> LogTab(s = s)
                     }
                 }
             }
@@ -115,7 +158,8 @@ fun ActionTab(
     s: GameState,
     onActivity: (ActivityId) -> Unit,
     onJob: (JobId?) -> Unit,
-    onReincarnate: () -> Unit
+    reincPreview: Engine.ReincarnationPreview,
+    onRequestReincarnate: () -> Unit
 ) {
     val scroll = rememberScrollState()
 
@@ -133,6 +177,20 @@ fun ActionTab(
                 SkillLine("Esprit", s.skills["mind"])
                 SkillLine("Force", s.skills["strength"])
                 SkillLine("Charisme", s.skills["charisma"])
+
+                Divider()
+                Text(
+                    "Vitesse activités : x${pretty2(Engine.activitySpeedMultiplier(s))} (Adaptation + Esprit)",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Vitesse jobs : x${pretty2(Engine.jobSpeedMultiplier(s))} (Linguistique)",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Attente au démarrage d'un job : ${pretty0(Engine.jobStartDelaySeconds(s))}s (réduit par Charisme)",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
 
@@ -177,12 +235,23 @@ fun ActionTab(
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
-                        activityPrereqsText(s, a.id).forEach { req ->
-                            Text(
-                                "Prérequis : $req",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
+                        if (!a.required(s)) {
+                            val missing = Defs.missingActivityRequirements(s, a.id)
+                            if (missing.isNotEmpty()) {
+                                missing.forEach { req ->
+                                    Text(
+                                        "Prérequis : $req",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    "Prérequis : compétences insuffisantes.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                 }
@@ -234,20 +303,158 @@ fun ActionTab(
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
-                        jobPrereqsText(s, j.id).forEach { req ->
-                            Text(
-                                "Prérequis : $req",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
+                        if (!j.required(s)) {
+                            val missing = Defs.missingJobRequirements(s, j.id)
+                            if (missing.isNotEmpty()) {
+                                missing.forEach { req ->
+                                    Text(
+                                        "Prérequis : $req",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    "Prérequis : compétences insuffisantes.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        Button(onClick = onReincarnate, modifier = Modifier.fillMaxWidth()) {
-            Text("Réincarner maintenant")
+        Button(onClick = onRequestReincarnate, modifier = Modifier.fillMaxWidth()) {
+            Text("Réincarner (+${reincPreview.echoGain} échos)")
+        }
+    }
+}
+
+@Composable
+fun ShopTab(
+    s: GameState,
+    onSelectHousing: (HousingId) -> Unit,
+    onSelectFood: (FoodId?) -> Unit,
+    onBuyOther: (OtherId) -> Unit,
+    onToggleOtherActive: (OtherId) -> Unit
+) {
+    val scroll = rememberScrollState()
+
+    Column(
+        modifier = Modifier.verticalScroll(scroll),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+
+        Card {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Boutique", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Joie : ${Defs.joy(s)}  |  Coût/jour total : ${pretty1(Defs.dailyCost(s))}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "La joie multiplie les gains d'XP (+1% par point).",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        // Logement (un seul choix)
+        Card {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Logement", style = MaterialTheme.typography.titleSmall)
+
+                Defs.housingItems.forEach { item ->
+                    val selected = s.selectedHousing == item.id
+                    ElevatedButton(
+                        onClick = { onSelectHousing(item.id) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text((if (selected) "✓ " else "") + item.name)
+                    }
+                    Text(
+                        "Coût/jour : ${pretty1(item.costPerDay)}  |  Joie +${item.joy}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(item.description, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
+        // Nourriture (un seul choix)
+        Card {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Nourriture", style = MaterialTheme.typography.titleSmall)
+
+                OutlinedButton(
+                    onClick = { onSelectFood(null) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (s.selectedFood == null) "✓ Aucun" else "Aucun")
+                }
+
+                Defs.foodItems.forEach { item ->
+                    val selected = s.selectedFood == item.id
+                    ElevatedButton(
+                        onClick = { onSelectFood(item.id) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text((if (selected) "✓ " else "") + item.name)
+                    }
+                    Text(
+                        "Coût/jour : ${pretty1(item.costPerDay)}  |  Joie +${item.joy}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(item.description, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
+        // Autre (multi-achat)
+        Card {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Autre", style = MaterialTheme.typography.titleSmall)
+
+                if (Defs.otherItems.isEmpty()) {
+                    Text(
+                        "Aucun objet ici pour le moment. Ajoute tes objets dans GameModel.kt -> Defs.otherItems.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                } else {
+                    Defs.otherItems.forEach { item ->
+                        val owned = s.ownedOther.contains(item.id)
+                        val active = s.activeOther.contains(item.id)
+
+                        Card {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(item.name, style = MaterialTheme.typography.titleMedium)
+                                Text(item.description, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    "Coût/jour : ${pretty1(item.costPerDay)}  |  Joie +${item.joy}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+
+                                if (!owned) {
+                                    Button(onClick = { onBuyOther(item.id) }) { Text("Acheter") }
+                                } else {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Actif", modifier = Modifier.weight(1f))
+                                        Switch(
+                                            checked = active,
+                                            onCheckedChange = { onToggleOtherActive(item.id) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -330,34 +537,9 @@ fun MasteryLine(label: String, st: SkillState) {
 fun formatAge(ageDays: Double): String {
     val years = floor(ageDays / 365.0).toInt()
     val months = floor(((ageDays % 365.0) / 30.0)).toInt()
-    val days = floor(ageDays % 30).toInt()
-    return "${years}a ${months}m ${days}y"
+    return "${years}a ${months}m"
 }
 
-private fun jobPrereqsText(s: GameState, jobId: JobId): List<String> {
-    fun lvl(id: SkillId) = s.skills[id]?.level ?: 1
-    return when (jobId) {
-        "scrap_runner" -> listOf("Adaptation ≥ 2 (actuel : ${lvl("adaptation")})")
-        "translator_helper" -> listOf("Linguistique ≥ 6 (actuel : ${lvl("linguistics")})")
-        "tech_apprentice" -> listOf(
-            "Tech ≥ 6 (actuel : ${lvl("tech")})",
-            "Adaptation ≥ 5 (actuel : ${lvl("adaptation")})"
-        )
-        "district_mediator" -> listOf(
-            "Charisme ≥ 8 (actuel : ${lvl("charisma")})",
-            "Linguistique ≥ 7 (actuel : ${lvl("linguistics")})",
-            "Adaptation ≥ 7 (actuel : ${lvl("adaptation")})"
-        )
-        else -> listOf("Compétences insuffisantes (prérequis non définis).")
-    }
-}
-
-private fun activityPrereqsText(s: GameState, activityId: ActivityId): List<String> {
-    fun lvl(id: SkillId) = s.skills[id]?.level ?: 1
-    return when (activityId) {
-        "study_tech" -> listOf("Linguistique ≥ 3 (actuel : ${lvl("linguistics")})")
-        "socialize" -> listOf("Linguistique ≥ 2 (actuel : ${lvl("linguistics")})")
-        else -> emptyList()
-    }
-
-}
+fun pretty1(v: Double): String = String.format(Locale.US, "%.1f", v)
+fun pretty2(v: Double): String = String.format(Locale.US, "%.2f", v)
+fun pretty0(v: Double): String = String.format(Locale.US, "%.0f", v)

@@ -2,12 +2,16 @@ package com.example.futurereborn
 
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.floor
 import kotlin.math.pow
 
 typealias SkillId = String
 typealias ActivityId = String
 typealias JobId = String
 typealias UpgradeId = String
+typealias HousingId = String
+typealias FoodId = String
+typealias OtherId = String
 
 data class SkillState(val level: Int = 1, val xp: Double = 0.0)
 
@@ -19,6 +23,15 @@ data class GameState(
 
     val activeActivity: ActivityId = "explore",
     val activeJob: JobId? = null,
+
+    // Temps d'attente avant qu'un job commence réellement (en secondes réelles)
+    val jobWaitSecondsRemaining: Double = 0.0,
+
+    // Boutique : un choix exclusif pour Logement et Nourriture, et une catégorie "Autre" multi-achats
+    val selectedHousing: HousingId = "shelter",
+    val selectedFood: FoodId? = null,
+    val ownedOther: Set<OtherId> = emptySet(),
+    val activeOther: Set<OtherId> = emptySet(),
 
     val skills: Map<SkillId, SkillState> = mapOf(
         "strength" to SkillState(),
@@ -79,6 +92,19 @@ data class UpgradeDef(
     val description: String,
     val baseCost: Int,
     val costGrowth: Double
+)
+
+enum class ShopCategory { HOUSING, FOOD, OTHER }
+
+data class ShopItemDef(
+    val id: String,
+    val name: String,
+    val description: String,
+    val category: ShopCategory,
+    // Coût journalier (crédits par jour in-game)
+    val costPerDay: Double,
+    // Joie : augmente les gains d'XP (voir Engine)
+    val joy: Int
 )
 
 object Defs {
@@ -185,6 +211,48 @@ object Defs {
         )
     )
 
+    // Boutique (tu peux ajouter d'autres objets plus tard)
+    val housingItems: List<ShopItemDef> = listOf(
+        ShopItemDef(
+            id = "shelter",
+            name = "Abri",
+            description = "Un coin à toi. Pas grand-chose, mais tu es à couvert.",
+            category = ShopCategory.HOUSING,
+            costPerDay = 0.5,
+            joy = 1
+        ),
+        ShopItemDef(
+            id = "small_house",
+            name = "Petite maison",
+            description = "Un vrai toit, une vraie porte. Tu respires mieux.",
+            category = ShopCategory.HOUSING,
+            costPerDay = 5.0,
+            joy = 3
+        )
+    )
+
+    val foodItems: List<ShopItemDef> = listOf(
+        ShopItemDef(
+            id = "cooked_potato",
+            name = "Pomme de terre cuite",
+            description = "Simple, efficace. Ça cale.",
+            category = ShopCategory.FOOD,
+            costPerDay = 2.0,
+            joy = 1
+        ),
+        ShopItemDef(
+            id = "soup",
+            name = "Soupe",
+            description = "Chaud, nourrissant. Tu te sens presque chez toi.",
+            category = ShopCategory.FOOD,
+            costPerDay = 12.0,
+            joy = 4
+        )
+    )
+
+    // "Autre" : multi-achat. Laisse vide si tu veux le remplir plus tard.
+    val otherItems: List<ShopItemDef> = emptyList()
+
     fun activity(id: ActivityId): ActivityDef =
         activities.firstOrNull { it.id == id } ?: activities.first()
 
@@ -226,6 +294,71 @@ object Defs {
         }
         return last
     }
+
+    fun housing(id: HousingId): ShopItemDef? = housingItems.firstOrNull { it.id == id }
+    fun food(id: FoodId): ShopItemDef? = foodItems.firstOrNull { it.id == id }
+    fun other(id: OtherId): ShopItemDef? = otherItems.firstOrNull { it.id == id }
+
+    fun dailyCost(s: GameState): Double {
+        val housingCost = housing(s.selectedHousing)?.costPerDay ?: 0.0
+        val foodCost = s.selectedFood?.let { food(it)?.costPerDay ?: 0.0 } ?: 0.0
+        val otherCost = s.activeOther.sumOf { id -> other(id)?.costPerDay ?: 0.0 }
+        return housingCost + foodCost + otherCost
+    }
+
+    fun joy(s: GameState): Int {
+        val housingJoy = housing(s.selectedHousing)?.joy ?: 0
+        val foodJoy = s.selectedFood?.let { food(it)?.joy ?: 0 } ?: 0
+        val otherJoy = s.activeOther.sumOf { id -> other(id)?.joy ?: 0 }
+        return housingJoy + foodJoy + otherJoy
+    }
+
+    // Affichage des prérequis (au lieu de juste vrai/faux)
+    fun missingActivityRequirements(s: GameState, activityId: ActivityId): List<String> {
+        fun lvl(id: SkillId) = s.skills[id]?.level ?: 1
+        val missing = mutableListOf<String>()
+        when (activityId) {
+            "study_tech" -> {
+                val cur = lvl("linguistics")
+                if (cur < 3) missing += "Linguistique ≥ 3 (actuel : $cur)"
+            }
+            "socialize" -> {
+                val cur = lvl("linguistics")
+                if (cur < 2) missing += "Linguistique ≥ 2 (actuel : $cur)"
+            }
+        }
+        return missing
+    }
+
+    fun missingJobRequirements(s: GameState, jobId: JobId): List<String> {
+        fun lvl(id: SkillId) = s.skills[id]?.level ?: 1
+        val missing = mutableListOf<String>()
+        when (jobId) {
+            "scrap_runner" -> {
+                val cur = lvl("adaptation")
+                if (cur < 2) missing += "Adaptation ≥ 2 (actuel : $cur)"
+            }
+            "translator_helper" -> {
+                val cur = lvl("linguistics")
+                if (cur < 6) missing += "Linguistique ≥ 6 (actuel : $cur)"
+            }
+            "tech_apprentice" -> {
+                val tech = lvl("tech")
+                val ad = lvl("adaptation")
+                if (tech < 6) missing += "Tech ≥ 6 (actuel : $tech)"
+                if (ad < 5) missing += "Adaptation ≥ 5 (actuel : $ad)"
+            }
+            "district_mediator" -> {
+                val ch = lvl("charisma")
+                val li = lvl("linguistics")
+                val ad = lvl("adaptation")
+                if (ch < 8) missing += "Charisme ≥ 8 (actuel : $ch)"
+                if (li < 7) missing += "Linguistique ≥ 7 (actuel : $li)"
+                if (ad < 7) missing += "Adaptation ≥ 7 (actuel : $ad)"
+            }
+        }
+        return missing
+    }
 }
 
 object Engine {
@@ -244,12 +377,45 @@ object Engine {
 
     private fun xpMultiplier(state: GameState): Double {
         val lvl = state.upgrades["xp_boost"] ?: 0
-        return 1.0 + 0.05 * lvl
+        val base = 1.0 + 0.05 * lvl
+        // Joie : +1% XP par point de joie (réglage simple, modifiable)
+        val joyMul = 1.0 + 0.01 * Defs.joy(state).coerceAtLeast(0)
+        return base * joyMul
     }
 
     private fun creditMultiplier(state: GameState): Double {
         val lvl = state.upgrades["credit_boost"] ?: 0
         return 1.0 + 0.05 * lvl
+    }
+
+    fun currentDay(state: GameState): Int {
+        // Jour 1 au démarrage
+        return floor(state.lifeSeconds * DAYS_PER_REAL_SECOND).toInt() + 1
+    }
+
+    private fun lvl(s: GameState, id: SkillId): Int = s.skills[id]?.level ?: 1
+
+    // Adaptation + Esprit => activités plus rapides
+    fun activitySpeedMultiplier(s: GameState): Double {
+        val ad = lvl(s, "adaptation")
+        val mind = lvl(s, "mind")
+        val mul = 1.0 + 0.03 * (ad - 1) + 0.02 * (mind - 1)
+        return mul.coerceIn(1.0, 3.0)
+    }
+
+    // Linguistique => jobs plus rapides
+    fun jobSpeedMultiplier(s: GameState): Double {
+        val li = lvl(s, "linguistics")
+        val mul = 1.0 + 0.03 * (li - 1)
+        return mul.coerceIn(1.0, 3.0)
+    }
+
+    // Charisme => réduit le temps d'attente au démarrage d'un job
+    fun jobStartDelaySeconds(s: GameState): Double {
+        val ch = lvl(s, "charisma")
+        val base = 20.0
+        val factor = (1.0 - 0.03 * (ch - 1)).coerceIn(0.25, 1.0)
+        return base * factor
     }
 
     fun tick(state: GameState, dtSecRaw: Double): GameState {
@@ -261,6 +427,12 @@ object Engine {
             ageDays = state.ageDays + dtDays
         )
 
+        // Décompte d'attente job (on gère un démarrage progressif)
+        val waitBefore = s.jobWaitSecondsRemaining.coerceAtLeast(0.0)
+        val waited = min(dtSec, waitBefore)
+        val waitAfter = max(0.0, waitBefore - dtSec)
+        s = s.copy(jobWaitSecondsRemaining = waitAfter)
+
         if (s.ageDays >= 80.0 * 365.0) {
             return reincarnate(s, "Ton corps n’a pas tenu. Mais quelque chose… persiste.")
         }
@@ -268,17 +440,21 @@ object Engine {
         val xpMul = xpMultiplier(s)
         val crMul = creditMultiplier(s)
 
+        val actSpeed = activitySpeedMultiplier(s)
+        val jobSpeed = jobSpeedMultiplier(s)
+
         // Activité : seulement si débloquée séquentiellement + required OK
         val act = Defs.activity(s.activeActivity)
         val actIdx = Defs.activities.indexOfFirst { it.id == act.id }
         val canDoActivity = actIdx != -1 && actIdx <= Defs.lastUnlockedActivityIndex(s) && act.required(s)
 
         if (canDoActivity) {
-            s = s.copy(credits = s.credits + act.creditsPerSec * dtSec * crMul)
+            val dtAct = dtSec * actSpeed
+            s = s.copy(credits = s.credits + act.creditsPerSec * dtAct * crMul)
             act.xp.forEach { (skill, rate) ->
-                s = gainXp(s, skill, rate * dtSec * xpMul)
+                s = gainXp(s, skill, rate * dtAct * xpMul)
             }
-            s = gainActivityMastery(s, act.id, dtSec * 1.0 * xpMul)
+            s = gainActivityMastery(s, act.id, dtAct * 1.0 * xpMul)
         }
 
         // Job : seulement si débloqué séquentiellement + required OK
@@ -289,16 +465,38 @@ object Engine {
             val canDoJob = job != null && jobIdx != -1 && jobIdx <= Defs.lastUnlockedJobIndex(s) && job.required(s)
 
             if (canDoJob) {
-                s = s.copy(credits = s.credits + job!!.creditsPerSec * dtSec * crMul)
-                job.xp.forEach { (skill, rate) ->
-                    s = gainXp(s, skill, rate * dtSec * xpMul)
+                // Si on attend encore, pas de gains; sinon, on ne comptabilise que le temps restant après l'attente
+                val effectiveJobTime = (dtSec - waited).coerceAtLeast(0.0)
+                if (effectiveJobTime > 0.0) {
+                    val dtJob = effectiveJobTime * jobSpeed
+                    s = s.copy(credits = s.credits + job!!.creditsPerSec * dtJob * crMul)
+                    job.xp.forEach { (skill, rate) ->
+                        s = gainXp(s, skill, rate * dtJob * xpMul)
+                    }
+                    s = gainJobMastery(s, jobId, dtJob * 1.0 * xpMul)
                 }
-                s = gainJobMastery(s, jobId, dtSec * 1.0 * xpMul)
             }
+        }
+
+        // Coût journalier des objets (logement/nourriture/autre)
+        val upkeep = Defs.dailyCost(s)
+        if (upkeep > 0.0) {
+            val newCredits = (s.credits - upkeep * dtDays).coerceAtLeast(0.0)
+            s = s.copy(credits = newCredits)
         }
 
         s = storyCheck(s)
         return s
+    }
+
+    data class ReincarnationPreview(val echoGain: Int, val startCredits: Int)
+
+    fun previewReincarnation(old: GameState): ReincarnationPreview {
+        val adaptation = old.skills["adaptation"]?.level ?: 1
+        val linguistics = old.skills["linguistics"]?.level ?: 1
+        val echoGain = (old.credits / 250.0).toInt() + (adaptation / 2) + (linguistics / 3)
+        val startBonus = (old.upgrades["start_bonus"] ?: 0) * 50
+        return ReincarnationPreview(echoGain = max(0, echoGain), startCredits = startBonus)
     }
 
     private fun gainXp(state: GameState, skillId: SkillId, amount: Double): GameState {
@@ -392,21 +590,17 @@ object Engine {
     }
 
     private fun reincarnate(old: GameState, reason: String): GameState {
-        val adaptation = old.skills["adaptation"]?.level ?: 1
-        val linguistics = old.skills["linguistics"]?.level ?: 1
-
-        val echoGain = (old.credits / 250.0).toInt() + (adaptation / 2) + (linguistics / 3)
-        val startBonus = (old.upgrades["start_bonus"] ?: 0) * 50
+        val prev = previewReincarnation(old)
 
         return GameState(
-            credits = startBonus.toDouble(),
-            echoes = old.echoes + max(0, echoGain),
+            credits = prev.startCredits.toDouble(),
+            echoes = old.echoes + prev.echoGain,
             upgrades = old.upgrades,
             totalLives = old.totalLives + 1,
             log = listOf(
                 reason,
                 "Une nouvelle vie commence. Tes souvenirs sont flous… mais pas tes instincts.",
-                "Échos gagnés : +${max(0, echoGain)}"
+                "Échos gagnés : +${prev.echoGain}"
             )
         )
     }
